@@ -100,14 +100,12 @@ def apply_rule1(block, block_below, next_block, next_block_below):
 		next_block_below.state = WATER_STATE
 		next_block_below.water_level += block.water_level
 		next_block.state = EMPTY_STATE
-		next_block.water_level = 0
 	else:
 		empty_space_below = FULL_WATER_LEVEL - block_below.water_level
 
 		if (empty_space_below>=block.water_level):
 			next_block_below.water_level += block.water_level
 			next_block.state = EMPTY_STATE
-			next_block.water_level = 0
 		else:
 			next_block_below.water_level += empty_space_below
 			next_block.water_level -= empty_space_below
