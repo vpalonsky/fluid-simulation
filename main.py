@@ -6,7 +6,8 @@ W_HEIGHT = 600
 FRAMERATE = 60
 BACKGROUND_COLOR = "black"
 SOLID_COLOR = "white"
-WATER_COLOR = "darkslategray1"
+WATER_COLOR = "cyan1"
+PRESSURISED_WATER_COLOR = "darkcyan"
 GRID_COLOR = "gray"
 GRID_THICKNESS = 1
 ROWS = 60
@@ -14,9 +15,10 @@ COLUMNS = 60
 EMPTY_STATE = 0
 SOLID_STATE = 1
 WATER_STATE = 2
-MAX_WATER_LEVEL = 1
+MAX_WATER_LEVEL = 1.3
 INITIAL_WATER_LEVEL = 2
 MIN_WATER_LEVEL = 0.005
+MIN_WATER_EXCESS = 0.01
 GRID = False
 
 pygame.init()
@@ -35,12 +37,11 @@ class Block():
 		self.y_pos = y
 		self.flow_directions = []
 
-	def draw(self):
+	def draw(self, empty_above):
 		if self.state == WATER_STATE:
-			# if self.water_level>MAX_WATER_LEVEL: print(self.water_level)
-			water_color = "dodgerblue4" if self.water_level>MAX_WATER_LEVEL else water_base_color.lerp("dodgerblue4", self.water_level/MAX_WATER_LEVEL)
+			water_color = PRESSURISED_WATER_COLOR if self.water_level>MAX_WATER_LEVEL else water_base_color.lerp(PRESSURISED_WATER_COLOR, self.water_level/MAX_WATER_LEVEL)
 
-			if len(self.flow_directions) == 1 and self.flow_directions[0] == "down":
+			if (len(self.flow_directions) == 1 and self.flow_directions[0] == "down") and not empty_above:
 				pygame.draw.rect(surface, water_color, pygame.Rect(self.x_pos, self.y_pos, block_width, block_height))
 			else:
 				water_height = block_height if self.water_level>MAX_WATER_LEVEL else block_height*(self.water_level/MAX_WATER_LEVEL)
@@ -131,18 +132,26 @@ def draw_blocks(blocks: list[list[Block]]):
 			if block.state == EMPTY_STATE:
 				continue
 
-			block.draw()
+			empty_above = True
+			if block.state == WATER_STATE and r > 0:
+				block_above = blocks[r - 1][c]
+				if block_above.water_level >= MIN_WATER_LEVEL:
+					empty_above = False
+
+			block.draw(empty_above)
 
 def handle_mouse_down(event, blocks: list[list[Block]]):
 	x, y = event.pos
 	block_r, block_c = int(y / block_height), int(x / block_width)
 	block = blocks[block_r][block_c]
 	if event.button == 1:  # Left mouse button
-		if block.state == EMPTY_STATE:
+		if block.state != SOLID_STATE:
 			block.state = SOLID_STATE
+			block.water_level = 0
 			return SOLID_STATE
 		else:
 			block.state = EMPTY_STATE
+			block.water_level = 0
 			return EMPTY_STATE
 	else:  # Right mouse button
 		if not block.state == SOLID_STATE:
@@ -160,9 +169,11 @@ def handle_mouse_move(event, blocks: list[list[Block]], draw_mode):
 	if button1:
 		if draw_mode == SOLID_STATE:
 			block.state = SOLID_STATE
+			block.water_level = 0
 		elif draw_mode == EMPTY_STATE and block.state == SOLID_STATE:
 			block.state = EMPTY_STATE
-	elif draw_mode == WATER_STATE:
+			block.water_level = 0
+	elif draw_mode == WATER_STATE and block.state != SOLID_STATE:
 		block.state = WATER_STATE
 		block.water_level += INITIAL_WATER_LEVEL
 
@@ -190,11 +201,10 @@ def simulate_fluid(blocks: list[list[Block]]):
 
 					if block_below.state == EMPTY_STATE:
 						block_below.state = WATER_STATE
-						water_flow = block.water_level
+						water_flow = block.water_level / 1.2
 						block_below.water_level += water_flow
 						block.water_level -= water_flow
-					# elif block_below.water_level < block.water_level:
-					else:
+					elif block_below.water_level < MAX_WATER_LEVEL:
 						empty_space_below = MAX_WATER_LEVEL - block_below.water_level
 						water_flow = min(block.water_level, empty_space_below)
 						block_below.water_level += water_flow
@@ -253,10 +263,11 @@ def simulate_fluid(blocks: list[list[Block]]):
 				if block_above.state != SOLID_STATE and block.water_level > MAX_WATER_LEVEL:
 					block.flow_directions.append("up")
 
-					water_excess = (block.water_level - MAX_WATER_LEVEL) / 4
+					water_excess = (block.water_level - MAX_WATER_LEVEL)
+					water_flow = water_excess if water_excess < MIN_WATER_EXCESS else water_excess / 6
 					block_above.state = WATER_STATE
-					block_above.water_level += water_excess
-					block.water_level -= water_excess
+					block_above.water_level += water_flow
+					block.water_level -= water_flow
 
 			if block.water_level < MIN_WATER_LEVEL:
 				block.state = EMPTY_STATE
