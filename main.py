@@ -19,6 +19,7 @@ MAX_WATER_LEVEL = 1.3
 INITIAL_WATER_LEVEL = 2
 MIN_WATER_LEVEL = 0.005
 MIN_WATER_EXCESS = 0.01
+MAX_WATER_EXCESS = 0.25
 GRID = False
 
 pygame.init()
@@ -41,14 +42,14 @@ class Block():
 		if self.state == WATER_STATE:
 			water_color = PRESSURISED_WATER_COLOR if self.water_level>MAX_WATER_LEVEL else water_base_color.lerp(PRESSURISED_WATER_COLOR, self.water_level/MAX_WATER_LEVEL)
 
-			if (len(self.flow_directions) == 1 and self.flow_directions[0] == "down") and not empty_above:
-				pygame.draw.rect(surface, water_color, pygame.Rect(self.x_pos, self.y_pos, block_width, block_height))
-			else:
+			if empty_above:
 				water_height = block_height if self.water_level>MAX_WATER_LEVEL else block_height*(self.water_level/MAX_WATER_LEVEL)
 				pygame.draw.rect(surface, water_color, pygame.Rect(self.x_pos, self.y_pos+(block_height-water_height), block_width, water_height))
+			else:
+				pygame.draw.rect(surface, water_color, pygame.Rect(self.x_pos, self.y_pos, block_width, block_height))
 
 			for direction in self.flow_directions:
-				# draw an arrow from the center of the block to the direction
+				# draw an arrow from the center of the block to the direction of the flow
 				block_mid_x = self.x_pos + block_width / 2
 				block_mid_y = self.y_pos + block_height / 2
 				arrow_length_horizontal = (block_width / 2) * 0.9
@@ -135,7 +136,7 @@ def draw_blocks(blocks: list[list[Block]]):
 			empty_above = True
 			if block.state == WATER_STATE and r > 0:
 				block_above = blocks[r - 1][c]
-				if block_above.water_level >= MIN_WATER_LEVEL:
+				if block_above.state != EMPTY_STATE:
 					empty_above = False
 
 			block.draw(empty_above)
@@ -195,8 +196,7 @@ def simulate_fluid(blocks: list[list[Block]]):
 
 			if r < ROWS - 1:  # Check the block below
 				block_below = blocks[r + 1][c]
-
-				if not (block_below.state==SOLID_STATE or block_below.water_level>=MAX_WATER_LEVEL):
+				if not (block_below.state==SOLID_STATE or block_below.water_level>=MAX_WATER_LEVEL*(1+MAX_WATER_EXCESS)):
 					block.flow_directions.append("down")
 
 					if block_below.state == EMPTY_STATE:
@@ -218,16 +218,16 @@ def simulate_fluid(blocks: list[list[Block]]):
 			if c > 0:  # Check the block to the left
 				block_left = blocks[r][c - 1]
 
-				if not (block_left.state == SOLID_STATE or block_left.water_level >= MAX_WATER_LEVEL):
+				if not (block_left.state == SOLID_STATE or block_left.water_level>=MAX_WATER_LEVEL):
 					block.flow_directions.append("left")
 
 					if block_left.state == EMPTY_STATE:
 						block_left.state = WATER_STATE
-						water_flow = (block.water_level - block_left.water_level) / 4
+						water_flow = (block.water_level - block_left.water_level) / 6
 						block_left.water_level += water_flow
 						block.water_level -= water_flow
 					elif block_left.water_level < block.water_level:
-						water_flow = (block.water_level - block_left.water_level) / 4
+						water_flow = (block.water_level - block_left.water_level) / 6
 						block_left.water_level += water_flow
 						block.water_level -= water_flow
 
@@ -239,16 +239,16 @@ def simulate_fluid(blocks: list[list[Block]]):
 			if c < COLUMNS - 1:  # Check the block to the right
 				block_right = blocks[r][c + 1]
 
-				if not (block_right.state == SOLID_STATE or block_right.water_level >= MAX_WATER_LEVEL):
+				if not (block_right.state == SOLID_STATE or block_right.water_level>=MAX_WATER_LEVEL):
 					block.flow_directions.append("right")
 
 					if block_right.state == EMPTY_STATE:
 						block_right.state = WATER_STATE
-						water_flow = (block.water_level - block_right.water_level) / 3
+						water_flow = (block.water_level - block_right.water_level) / 6
 						block_right.water_level += water_flow
 						block.water_level -= water_flow
 					elif block_right.water_level < block.water_level:
-						water_flow = (block.water_level - block_right.water_level) / 3
+						water_flow = (block.water_level - block_right.water_level) / 6
 						block_right.water_level += water_flow
 						block.water_level -= water_flow
 
@@ -264,7 +264,7 @@ def simulate_fluid(blocks: list[list[Block]]):
 					block.flow_directions.append("up")
 
 					water_excess = (block.water_level - MAX_WATER_LEVEL)
-					water_flow = water_excess if water_excess < MIN_WATER_EXCESS else water_excess / 6
+					water_flow = water_excess if water_excess < MIN_WATER_EXCESS else water_excess / 10
 					block_above.state = WATER_STATE
 					block_above.water_level += water_flow
 					block.water_level -= water_flow
